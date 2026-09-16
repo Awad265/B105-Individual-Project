@@ -1,0 +1,343 @@
+> # ============================================
+> # B105 Applied Statistical Modelling
+> # Olist Brazilian E-Commerce Analysis
+> # Single Hypothesis: Does payment_type affect payment_value?
+> # Dataset: https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce
+> # ============================================
+> 
+> # ---- Variables Used ----
+> # IV: payment_type - nominal categorical, 4 levels (credit_card, boleto, debit_card, voucher)
+> # DV: payment_value - continuous, ratio-scale (Brazilian Real, R$)
+> #
+> # H0: There is no significant difference in mean payment_value across payment types.
+> # H1: At least one payment type differs significantly in mean payment_value.
+> 
+> # ---- Step 1: Load libraries ----
+> install.packages("dplyr")
+Installing package into ‘/cloud/lib/x86_64-pc-linux-gnu-library/4.6’
+(as ‘lib’ is unspecified)
+trying URL 'http://rspm/default/__linux__/noble/latest/src/contrib/dplyr_1.2.1.tar.gz'
+Content type 'application/x-gzip' length 1528821 bytes (1.5 MB)
+==================================================
+downloaded 1.5 MB
+
+* installing *binary* package ‘dplyr’ ...
+* package ‘dplyr’ successfully unpacked and SHA256 sums checked
+* DONE (dplyr)
+
+The downloaded source packages are in
+	‘/tmp/RtmpXtabPy/downloaded_packages’
+> install.packages("car")
+Installing package into ‘/cloud/lib/x86_64-pc-linux-gnu-library/4.6’
+(as ‘lib’ is unspecified)
+trying URL 'http://rspm/default/__linux__/noble/latest/src/contrib/car_3.1-5.tar.gz'
+Content type 'application/x-gzip' length 1540366 bytes (1.5 MB)
+==================================================
+downloaded 1.5 MB
+
+* installing *binary* package ‘car’ ...
+* package ‘car’ successfully unpacked and SHA256 sums checked
+* DONE (car)
+
+The downloaded source packages are in
+	‘/tmp/RtmpXtabPy/downloaded_packages’
+> install.packages("readr")
+Installing package into ‘/cloud/lib/x86_64-pc-linux-gnu-library/4.6’
+(as ‘lib’ is unspecified)
+trying URL 'http://rspm/default/__linux__/noble/latest/src/contrib/readr_2.2.0.tar.gz'
+Content type 'application/x-gzip' length 851254 bytes (831 KB)
+==================================================
+downloaded 831 KB
+
+* installing *binary* package ‘readr’ ...
+* package ‘readr’ successfully unpacked and SHA256 sums checked
+* DONE (readr)
+
+The downloaded source packages are in
+	‘/tmp/RtmpXtabPy/downloaded_packages’
+> library(dplyr)
+> library(car)
+> library(readr)
+> 
+> # ---- Step 2: Load data ----
+> # Files are inside the B105 subfolder in this project
+> payments <- read_csv("B105/olist_order_payments_dataset.csv")
+Rows: 103886 Columns: 5                                                             
+── Column specification ────────────────────────────────────────────────────────────
+Delimiter: ","
+chr (2): order_id, payment_type
+dbl (3): payment_sequential, payment_installments, payment_value
+
+ℹ Use `spec()` to retrieve the full column specification for this data.
+ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+> reviews  <- read_csv("B105/olist_order_reviews_dataset.csv")
+Rows: 99224 Columns: 7                                                              
+── Column specification ────────────────────────────────────────────────────────────
+Delimiter: ","
+chr  (4): review_id, order_id, review_comment_title, review_comment_message
+dbl  (1): review_score
+dttm (2): review_creation_date, review_answer_timestamp
+
+ℹ Use `spec()` to retrieve the full column specification for this data.
+ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+> items    <- read_csv("B105/olist_order_items_dataset.csv")
+Rows: 112650 Columns: 7                                                             
+── Column specification ────────────────────────────────────────────────────────────
+Delimiter: ","
+chr  (3): order_id, product_id, seller_id
+dbl  (3): order_item_id, price, freight_value
+dttm (1): shipping_limit_date
+
+ℹ Use `spec()` to retrieve the full column specification for this data.
+ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+> 
+> # Convert payment_type to factor (readr loads it as character by default)
+> payments$payment_type <- as.factor(payments$payment_type)
+> 
+> str(payments)
+spc_tbl_ [103,886 × 5] (S3: spec_tbl_df/tbl_df/tbl/data.frame)
+ $ order_id            : chr [1:103886] "b81ef226f3fe1789b1e8b2acac839d17" "a9810da82917af2d9aefd1278f1dcfa0" "25e8ea4e93396b6fa0d3dd708e76c1bd" "ba78997921bbcdc1373bb41e913ab953" ...
+ $ payment_sequential  : num [1:103886] 1 1 1 1 1 1 1 1 1 1 ...
+ $ payment_type        : Factor w/ 5 levels "boleto","credit_card",..: 2 2 2 2 2 2 2 2 2 1 ...
+ $ payment_installments: num [1:103886] 8 1 1 8 2 2 1 3 6 1 ...
+ $ payment_value       : num [1:103886] 99.3 24.4 65.7 107.8 128.4 ...
+ - attr(*, "spec")=
+  .. cols(
+  ..   order_id = col_character(),
+  ..   payment_sequential = col_double(),
+  ..   payment_type = col_character(),
+  ..   payment_installments = col_double(),
+  ..   payment_value = col_double()
+  .. )
+ - attr(*, "problems")=<pointer: 0x57299b995e80> 
+> str(reviews)
+spc_tbl_ [99,224 × 7] (S3: spec_tbl_df/tbl_df/tbl/data.frame)
+ $ review_id              : chr [1:99224] "7bc2406110b926393aa56f80a40eba40" "80e641a11e56f04c1ad469d5645fdfde" "228ce5500dc1d8e020d8d1322874b6f0" "e64fb393e7b32834bb789ff8bb30750e" ...
+ $ order_id               : chr [1:99224] "73fc7af87114b39712e6da79b0a377eb" "a548910a1c6147796b98fdf73dbeba33" "f9e4b658b201a9f2ecdecbb34bed034b" "658677c97b385a9be170737859d3511b" ...
+ $ review_score           : num [1:99224] 4 5 5 5 5 1 5 5 5 4 ...
+ $ review_comment_title   : chr [1:99224] NA NA NA NA ...
+ $ review_comment_message : chr [1:99224] NA NA NA "Recebi bem antes do prazo estipulado." ...
+ $ review_creation_date   : POSIXct[1:99224], format: "2018-01-18 00:00:00" "2018-03-10 00:00:00" ...
+ $ review_answer_timestamp: POSIXct[1:99224], format: "2018-01-18 21:46:59" "2018-03-11 03:05:13" ...
+ - attr(*, "spec")=
+  .. cols(
+  ..   review_id = col_character(),
+  ..   order_id = col_character(),
+  ..   review_score = col_double(),
+  ..   review_comment_title = col_character(),
+  ..   review_comment_message = col_character(),
+  ..   review_creation_date = col_datetime(format = ""),
+  ..   review_answer_timestamp = col_datetime(format = "")
+  .. )
+ - attr(*, "problems")=<pointer: 0x5729a3896380> 
+> str(items)
+spc_tbl_ [112,650 × 7] (S3: spec_tbl_df/tbl_df/tbl/data.frame)
+ $ order_id           : chr [1:112650] "00010242fe8c5a6d1ba2dd792cb16214" "00018f77f2f0320c557190d7a144bdd3" "000229ec398224ef6ca0657da4fc703e" "00024acbcdf0a6daa1e931b038114c75" ...
+ $ order_item_id      : num [1:112650] 1 1 1 1 1 1 1 1 1 1 ...
+ $ product_id         : chr [1:112650] "4244733e06e7ecb4970a6e2683c13e61" "e5f2d52b802189ee658865ca93d83a8f" "c777355d18b72b67abbeef9df44fd0fd" "7634da152a4610f1595efa32f14722fc" ...
+ $ seller_id          : chr [1:112650] "48436dade18ac8b2bce089ec2a041202" "dd7ddc04e1b6c2c614352b383efe2d36" "5b51032eddd242adc84c38acab88f23d" "9d7a1d34a5052409006425275ba1c2b4" ...
+ $ shipping_limit_date: POSIXct[1:112650], format: "2017-09-19 09:45:35" "2017-05-03 11:05:13" ...
+ $ price              : num [1:112650] 58.9 239.9 199 13 199.9 ...
+ $ freight_value      : num [1:112650] 13.3 19.9 17.9 12.8 18.1 ...
+ - attr(*, "spec")=
+  .. cols(
+  ..   order_id = col_character(),
+  ..   order_item_id = col_double(),
+  ..   product_id = col_character(),
+  ..   seller_id = col_character(),
+  ..   shipping_limit_date = col_datetime(format = ""),
+  ..   price = col_double(),
+  ..   freight_value = col_double()
+  .. )
+ - attr(*, "problems")=<pointer: 0x57299db6ec80> 
+> 
+> # ---- Step 3: Aggregate and join ----
+> # NOTE: named df_final (not df) - "df" can be shadowed by R's built-in
+> # F-distribution function in some sessions, which breaks later functions.
+> 
+> payments_agg <- payments %>%
++   group_by(order_id) %>%
++   summarise(
++     payment_type = first(payment_type),
++     payment_installments = first(payment_installments),
++     payment_value = sum(payment_value)
++   )
+> 
+> items_agg <- items %>%
++   group_by(order_id) %>%
++   summarise(
++     price = sum(price),
++     freight_value = sum(freight_value)
++   )
+> 
+> reviews_clean <- reviews %>%
++   select(order_id, review_score) %>%
++   distinct(order_id, .keep_all = TRUE)
+> 
+> df_final <- payments_agg %>%
++   inner_join(items_agg, by = "order_id") %>%
++   inner_join(reviews_clean, by = "order_id")
+> 
+> nrow(df_final)      # should be 97,916 orders
+[1] 97916
+> str(df_final)
+tibble [97,916 × 7] (S3: tbl_df/tbl/data.frame)
+ $ order_id            : chr [1:97916] "00010242fe8c5a6d1ba2dd792cb16214" "00018f77f2f0320c557190d7a144bdd3" "000229ec398224ef6ca0657da4fc703e" "00024acbcdf0a6daa1e931b038114c75" ...
+ $ payment_type        : Factor w/ 5 levels "boleto","credit_card",..: 2 2 2 2 2 1 2 2 2 2 ...
+ $ payment_installments: num [1:97916] 2 3 5 2 3 1 1 10 3 1 ...
+ $ payment_value       : num [1:97916] 72.2 259.8 216.9 25.8 218 ...
+ $ price               : num [1:97916] 58.9 239.9 199 13 199.9 ...
+ $ freight_value       : num [1:97916] 13.3 19.9 17.9 12.8 18.1 ...
+ $ review_score        : num [1:97916] 5 4 5 4 5 4 4 5 1 4 ...
+> summary(df_final)
+      order_id          payment_type   payment_installments payment_value     
+ Length   :97916   boleto     :19471   Min.   : 0.000       Min.   :    9.59  
+ N.unique :97916   credit_card:74310   1st Qu.: 1.000       1st Qu.:   61.93  
+ N.blank  :    0   debit_card : 1514   Median : 2.000       Median :  105.28  
+ Min.nchar:   32   not_defined:    0   Mean   : 2.915       Mean   :  160.37  
+ Max.nchar:   32   voucher    : 2621   3rd Qu.: 4.000       3rd Qu.:  176.76  
+                                       Max.   :24.000       Max.   :13664.08  
+     price          freight_value      review_score  
+ Min.   :    0.85   Min.   :   0.00   Min.   :1.000  
+ 1st Qu.:   45.90   1st Qu.:  13.84   1st Qu.:4.000  
+ Median :   86.90   Median :  17.16   Median :5.000  
+ Mean   :  137.53   Mean   :  22.80   Mean   :4.105  
+ 3rd Qu.:  149.90   3rd Qu.:  24.01   3rd Qu.:5.000  
+ Max.   :13440.00   Max.   :1794.96   Max.   :5.000  
+> 
+> # ---- Step 4: Data cleaning and quality check ----
+> # payment_type may contain an empty "not_defined" factor level,
+> # which breaks statistical tests if left in. Must be dropped first.
+> 
+> df_clean <- df_final %>% filter(payment_type != "not_defined")
+> df_clean$payment_type <- droplevels(df_clean$payment_type)
+> 
+> table(df_clean$payment_type)
+
+     boleto credit_card  debit_card     voucher 
+      19471       74310        1514        2621 
+> sum(is.na(df_clean$payment_value))
+[1] 0
+> 
+> # ============================================
+> # Test Selection:
+> # IV is categorical with >2 groups, DV is continuous -> One-Way ANOVA
+> # is the appropriate primary test. t-test and regression follow as
+> # supporting checks, not separate hypotheses.
+> # ============================================
+> 
+> # ---- Descriptive statistics ----
+> df_clean %>%
++   group_by(payment_type) %>%
++   summarise(mean_val = mean(payment_value), sd = sd(payment_value), n = n())
+# A tibble: 4 × 4
+  payment_type mean_val    sd     n
+  <fct>           <dbl> <dbl> <int>
+1 boleto           144.  208. 19471
+2 credit_card      166.  223. 74310
+3 debit_card       142.  240.  1514
+4 voucher          125.  170.  2621
+> 
+> # ============================================
+> # PRIMARY TEST: One-Way ANOVA
+> # ============================================
+> 
+> # Assumption check: homogeneity of variance
+> leveneTest(payment_value ~ payment_type, data = df_clean)
+Levene's Test for Homogeneity of Variance (center = median)
+         Df F value    Pr(>F)    
+group     3  34.547 < 2.2e-16 ***
+      97912                      
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+> 
+> # Standard ANOVA
+> aov_model <- aov(payment_value ~ payment_type, data = df_clean)
+> summary(aov_model)
+                Df    Sum Sq Mean Sq F value Pr(>F)    
+payment_type     3 1.129e+07 3762433   78.43 <2e-16 ***
+Residuals    97912 4.697e+09   47973                   
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+> 
+> # Levene's test is expected to be significant (unequal variances),
+> # so Welch's ANOVA is used as the trusted result:
+> oneway.test(payment_value ~ payment_type, data = df_clean, var.equal = FALSE)
+
+	One-way analysis of means (not assuming equal variances)
+
+data:  payment_value and payment_type
+F = 95.288, num df = 3.0, denom df = 4876.2, p-value < 2.2e-16
+
+> 
+> # Post-hoc pairwise comparisons
+> TukeyHSD(aov_model)
+  Tukey multiple comparisons of means
+    95% family-wise confidence level
+
+Fit: aov(formula = payment_value ~ payment_type, data = df_clean)
+
+$payment_type
+                             diff       lwr        upr     p adj
+credit_card-boleto      21.794530  17.26444  26.324621 0.0000000
+debit_card-boleto       -2.679016 -17.69192  12.333888 0.9679957
+voucher-boleto         -19.372555 -31.07987  -7.665243 0.0001251
+debit_card-credit_card -24.473546 -39.08132  -9.865771 0.0000987
+voucher-credit_card    -41.167085 -52.35015 -29.984020 0.0000000
+voucher-debit_card     -16.693539 -34.85742   1.470340 0.0847283
+
+> 
+> # ============================================
+> # SUPPORTING CHECK A: Independent t-test (credit_card vs boleto)
+> # ============================================
+> 
+> t_data <- df_clean %>% filter(payment_type %in% c("credit_card", "boleto"))
+> t_data$payment_type <- droplevels(t_data$payment_type)
+> 
+> leveneTest(payment_value ~ payment_type, data = t_data)
+Levene's Test for Homogeneity of Variance (center = median)
+         Df F value    Pr(>F)    
+group     1  64.423 1.015e-15 ***
+      93779                      
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+> t.test(payment_value ~ payment_type, data = t_data)
+
+	Welch Two Sample t-test
+
+data:  payment_value by payment_type
+t = -12.808, df = 32147, p-value < 2.2e-16
+alternative hypothesis: true difference in means between group boleto and group credit_card is not equal to 0
+95 percent confidence interval:
+ -25.12982 -18.45924
+sample estimates:
+     mean in group boleto mean in group credit_card 
+                 144.3875                  166.1820 
+
+> 
+> # ============================================
+> # SUPPORTING CHECK B: Simple linear regression
+> # ============================================
+> 
+> lm_payment <- lm(payment_value ~ payment_type, data = df_clean)
+> summary(lm_payment)
+
+Call:
+lm(formula = payment_value ~ payment_type, data = df_clean)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+ -156.6   -98.1   -54.8    17.2 13497.9 
+
+Coefficients:
+                        Estimate Std. Error t value Pr(>|t|)    
+(Intercept)              144.387      1.570  91.987  < 2e-16 ***
+payment_typecredit_card   21.795      1.763  12.360  < 2e-16 ***
+payment_typedebit_card    -2.679      5.844  -0.458    0.647    
+payment_typevoucher      -19.373      4.557  -4.251 2.13e-05 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 219 on 97912 degrees of freedom
+Multiple R-squared:  0.002397,	Adjusted R-squared:  0.002367 
+F-statistic: 78.43 on 3 and 97912 DF,  p-value: < 2.2e-16
